@@ -48,15 +48,9 @@ def main():
             st.warning("Por favor, digite o nome de um produto.")
             return
             
-        with st.spinner("Consultando preço do mercado..."):
-            # with open("exemplo.json", "r") as f:
-            #     data = json.load(f)
-            # produtos = data['shopping']
-            # df_bruto = pd.DataFrame(produtos)
-            
-            # Quando for usar a API real, você vai chamar assim agora:
-            df_bruto = buscar_preco_concorrente(nome_produto.strip())
-
+        with st.spinner("Consultando preço do mercado na API..."):
+            # Chamada Oficial para a API do Google Shopping (Serper)
+            df_bruto = buscar_preco_concorrente(nome_produto.strip())            
             
         if df_bruto is None or df_bruto.empty:
             st.error("Não foi possível encontrar concorrentes fora da blacklist.")
@@ -139,9 +133,39 @@ def main():
             "resultado": resultado
         })
         
-        # Exibição do JSON formatado
-        st.subheader("Resposta do Pricing Engine")
-        st.json(resultado)
+        # Exibição Visual do Preço Sugerido (Substituindo o JSON bruto)
+        st.subheader("💡 Recomendação do Pricing Engine")
+        
+        # Define a cor/alerta baseado no status da operação
+        status_op = resultado.get("status", "INFO")
+        if status_op == "ÓTIMO":
+            st.success(f"**{status_op}**: {resultado.get('mensagem', '')}")
+            delta_color = "normal"
+            delta_text = "Margem Alvo Atingida!"
+        elif status_op == "COMPETITIVO/SUB-ÓTIMO":
+            st.warning(f"**{status_op}**: {resultado.get('mensagem', '')}")
+            delta_color = "off"
+            delta_text = "Abaixo da Margem"
+        else:
+            st.error(f"**{status_op}**: {resultado.get('mensagem', '')}")
+            delta_color = "inverse"
+            delta_text = "Sobrevivência/Prejuízo"
+            
+        # KPI Principal em Destaque
+        st.metric(
+            label="Preço de Venda Sugerido", 
+            value=f"R$ {resultado['preco_sugerido']:.2f}" if resultado.get('preco_sugerido') is not None else "N/A",
+            delta=delta_text,
+            delta_color=delta_color
+        )
+        
+        # Limites (Piso e Teto) formatados menores abaixo
+        c_piso, c_teto = st.columns(2)
+        c_piso.markdown(f"**📉 Piso (Break-even):** R$ {resultado['piso']:.2f}")
+        
+        teto_val = resultado.get('teto')
+        teto_str = f"R$ {teto_val:.2f}" if teto_val is not None else "Voo Cego (Sem Teto)"
+        c_teto.markdown(f"**📈 Teto (Concorrente + EVE):** {teto_str}")
 
 if __name__ == "__main__":
     main()
