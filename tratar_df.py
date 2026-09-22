@@ -8,9 +8,9 @@ def limpar_texto(texto):
     texto = unicodedata.normalize('NFKD', texto).encode('ASCII', 'ignore').decode('utf-8')
     return texto.lower().strip()
 
-def tratamento(df: pd.DataFrame) -> pd.DataFrame:
+def tratamento(df: pd.DataFrame, loja_cliente: str = "") -> pd.DataFrame:
     """
-    Higieniza e normaliza o DataFrame contendo os dados brutos de precificação.
+    Higieniza e normaliza o DataFrame, aplicando a blacklist e tratando os preços.
     """
     # 1. Drop de nulos essenciais
     df_limpo = df.dropna(subset=["title", "price"]).copy()
@@ -18,7 +18,24 @@ def tratamento(df: pd.DataFrame) -> pd.DataFrame:
     if df_limpo.empty:
         return df_limpo
         
-    # 2. Tratamento matemático da string de preço usando métodos vetorizados do Pandas
+    # 2. Aplicação da Blacklist
+    blacklist = [
+        "amazon", "amazon.com.br", "magazine luiza", "magalu", 
+        "mercadolivre", "mercado livre", "shopee", "americanas", 
+        "casas bahia", "ponto", "pontofrio", "extra", 
+        "submarino", "shoptime"
+    ]
+    if loja_cliente.strip():
+        blacklist.append(loja_cliente.strip().lower())
+        
+    df_limpo["source"] = df_limpo["source"].astype(str)
+    filtro_regex = '|'.join(blacklist)
+    df_limpo = df_limpo[~df_limpo["source"].str.lower().str.contains(filtro_regex, na=False)]
+    
+    if df_limpo.empty:
+        return df_limpo
+        
+    # 3. Tratamento matemático da string de preço usando métodos vetorizados do Pandas
     # Transforma para string e remove o que não é número/ponto/virgula usando regex
     precos_str = df_limpo['price'].astype(str).str.replace(r'[^\d.,]', '', regex=True)
     
@@ -29,8 +46,8 @@ def tratamento(df: pd.DataFrame) -> pd.DataFrame:
     df_limpo['price_limpo'] = pd.to_numeric(precos_str, errors='coerce')
     df_limpo = df_limpo.dropna(subset=['price_limpo'])
     
-    # 3. Normalização de Texto (Vetorizada)
+    # 4. Normalização de Texto (Vetorizada)
     df_limpo['title_norm'] = df_limpo['title'].apply(limpar_texto)
     df_limpo['source_norm'] = df_limpo['source'].apply(limpar_texto)
     
-    return df_limpo
+    return df_limpo.reset_index(drop=True)

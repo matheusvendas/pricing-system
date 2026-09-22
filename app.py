@@ -36,7 +36,12 @@ def main():
     # PAINEL PRINCIPAL
     # ==========================
     st.subheader("Consulta de Produto")
-    nome_produto = st.text_input("Nome do Produto (Busca na API)", placeholder="Ex: smartphone, perfume, laptop")
+    
+    col_b1, col_b2 = st.columns(2)
+    with col_b1:
+        nome_produto = st.text_input("Nome do Produto (Busca na API)", placeholder="Ex: smartphone, perfume, laptop")
+    with col_b2:
+        loja_cliente = st.text_input("Nome da sua Loja (Para ignorar na busca)", placeholder="Ex: Pichau, Kabum, etc", help="Seus próprios preços serão excluídos da análise (blacklist).")
     
     if st.button("Calcular Preço", type="primary"):
         if not nome_produto.strip():
@@ -44,22 +49,26 @@ def main():
             return
             
         with st.spinner("Consultando preço do mercado..."):
-            with open("exemplo.json", "r") as f:
-                data = json.load(f)
-            produtos = data['shopping']
-            df_bruto = pd.DataFrame(produtos)
-            # df_bruto = buscar_preco_concorrente(nome_produto.strip())
+            # with open("exemplo.json", "r") as f:
+            #     data = json.load(f)
+            # produtos = data['shopping']
+            # df_bruto = pd.DataFrame(produtos)
+            
+            # Quando for usar a API real, você vai chamar assim agora:
+            df_bruto = buscar_preco_concorrente(nome_produto.strip())
 
             
         if df_bruto is None or df_bruto.empty:
             st.error("Não foi possível encontrar concorrentes fora da blacklist.")
         else:
             st.session_state['df_bruto'] = df_bruto
+            st.session_state['loja_cliente'] = loja_cliente
             
     if 'df_bruto' in st.session_state:
         df_bruto = st.session_state['df_bruto']
+        loja_cliente = st.session_state.get('loja_cliente', '')
         
-        df_limpo = tratamento(df_bruto)
+        df_limpo = tratamento(df_bruto, loja_cliente)
         if df_limpo.empty:
             st.error("Falha ao higienizar os preços retornados.")
             return

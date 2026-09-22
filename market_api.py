@@ -14,7 +14,7 @@ def buscar_preco_concorrente(nome_produto: str) -> Optional[pd.DataFrame]:
         nome_produto: O nome do produto para pesquisa.
         
     Retorna:
-        Um DataFrame Pandas com os produtos encontrados, filtrando as lojas da blacklist,
+        Um DataFrame Pandas bruto com os produtos encontrados (a filtragem de blacklist ocorre no tratar_df),
         ou None em caso de falha ou ausência de dados.
     """
     api_key = os.getenv("SERPAPI_KEY")
@@ -46,28 +46,7 @@ def buscar_preco_concorrente(nome_produto: str) -> Optional[pd.DataFrame]:
             if col not in df.columns:
                 df[col] = None
         
-        # Lista de lojas a serem ignoradas (Blacklist) - minúsculas
-        blacklist = [
-            "amazon", "amazon.com.br", "magazine luiza", "magalu", 
-            "mercadolivre", "mercado livre", "shopee", "americanas", 
-            "casas bahia", "ponto", "pontofrio", "extra", 
-            "submarino", "shoptime"
-        ]
-        
-        # Se certifica que a coluna source seja tratada como string para filtro
-        df["source"] = df["source"].astype(str)
-        
-        # Filtra removendo as lojas que contêm itens da blacklist
-        filtro_regex = '|'.join(blacklist)
-        df_filtrado = df[~df["source"].str.lower().str.contains(filtro_regex, na=False)].copy()
-        
-        if df_filtrado.empty:
-            return None
-            
-        # Reseta o index para manter o 0 como o mais relevante do Google
-        df_filtrado = df_filtrado.reset_index(drop=True)
-            
-        return df_filtrado
+        return df
 
     except (requests.exceptions.RequestException, ValueError, KeyError, TypeError) as e:
         print(f"Erro ao consultar mercado: {e}")

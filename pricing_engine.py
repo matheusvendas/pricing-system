@@ -1,63 +1,59 @@
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 def calcular_preco_ideal(
     custo_base: float,
     frete_fixo: float,
     taxa_comissao: float,
     margem_alvo: float,
-    preco_concorrente: float,
+    preco_concorrente: Optional[float],  # Agora aceita explicitamente None
     fator_posicionamento_eve: float
 ) -> Dict[str, Any]:
-    """
-    Função orquestradora para o cálculo do preço de venda determinístico.
     
-    Parâmetros:
-        custo_base: Custo de aquisição do produto.
-        frete_fixo: Custo fixo do frete.
-        taxa_comissao: Percentual cobrado pelo marketplace/plataforma (ex: 0.15 para 15%).
-        margem_alvo: Percentual de margem de lucro desejada (ex: 0.10 para 10%).
-        preco_concorrente: Preço praticado pelo principal concorrente.
-        fator_posicionamento_eve: Percentual premium/desconto do Economic Value Estimation (ex: 0.05 para +5%).
-        
-    Fórmulas utilizadas:
-    1) Piso (Break-even): (custo_base + frete_fixo) / (1 - taxa_comissao)
-    2) Teto (Posicionamento Estratégico): preco_concorrente * (1 + fator_posicionamento_eve)
-    
-    Retorna:
-        Dicionário com os indicadores de preço e a viabilidade (Piso <= Teto).
-    """
-    
-    # 1) Calcular o piso (Break-even point)
-    # O piso garante que ao descontar a comissão, o valor cobre exatamente custo + frete.
+    # 1) Calcular Limites Internos
     try:
         piso = (custo_base + frete_fixo) / (1.0 - taxa_comissao)
-    except ZeroDivisionError:
-        piso = float('inf')
-        
-    # Calculando preço considerando a margem alvo apenas para referência adicional
-    try:
         preco_com_margem = (custo_base + frete_fixo) / (1.0 - taxa_comissao - margem_alvo)
     except ZeroDivisionError:
-        preco_com_margem = float('inf')
+        return {"mensagem": "Erro: Taxas somam 100% ou mais. Inviável matematicamente."}
 
-    # 2) Calcular o teto
-    # O teto é balizado pelo concorrente ajustado pelo nosso EVE (Economic Value Estimation)
+    # 2) Rota de Voo Cego (Falha de Mercado / Sem âncora)
+    if preco_concorrente is None or preco_concorrente <= 0:
+        return {
+            "viavel": True, # Presumimos viável pois garantimos a margem matemática
+            "piso": round(piso, 2),
+            "teto": None,
+            "preco_sugerido": round(preco_com_margem, 2),
+            "preco_com_margem_alvo": round(preco_com_margem, 2),
+            "mensagem": "Voo Cego ativado: Preço ancorado apenas na Margem Alvo interna."
+        }
+        
+# 3) Rota Normal (EVE e Posicionamento)
     teto = preco_concorrente * (1.0 + fator_posicionamento_eve)
     
-    # 3) Verificar viabilidade
-    # Se o piso (custo sem prejuízo) for maior que o teto aceito pelo mercado, a venda é inviável
-    is_viavel = piso <= teto
+    # Nova árvore de decisão
+    if teto < piso:
+        status = "INVIÁVEL"
+        preco_sugerido = piso  # Redução de danos
+        msg = "Alerta: Teto (EVE) não cobre os custos. Preço forçado para o Piso."
+        
+    elif teto < preco_com_margem:
+        status = "COMPETITIVO/SUB-ÓTIMO"
+        preco_sugerido = teto  # Maximiza dentro do possível
+        msg = f"Aviso: Operação saudável, mas não atinge a margem alvo. Faltam R$ {preco_com_margem - teto:.2f}."
+        
+    else:
+        status = "ÓTIMO"
+        preco_sugerido = teto  # Captura todo o valor possível da mesa
+        msg = "Sucesso: Teto supera a margem alvo interna. Captura máxima de valor."
     
-    # Preço sugerido: Teto (maximização de receita dentro da estratégia de posicionamento)
-    # Poderíamos também utilizar outras estratégias, mas o teto é seguro se for viável.
-    preco_sugerido = teto if is_viavel else None
-    
-    # 4) Retornar o dicionário de resposta
+    # 4) Retornar o dicionário de resposta consolidado
+    is_viavel = teto >= piso
     return {
         "viavel": is_viavel,
         "piso": round(piso, 2),
         "teto": round(teto, 2),
-        "preco_sugerido": round(preco_sugerido, 2) if preco_sugerido is not None else None,
-        "preco_com_margem_alvo": round(preco_com_margem, 2) if preco_com_margem != float('inf') else None,
-        "mensagem": "Viável" if is_viavel else "Inviável: Piso > Teto"
+        "preco_sugerido": round(preco_sugerido, 2),
+        "preco_com_margem_alvo": round(preco_com_margem, 2),
+        "mensagem": msg,
+        "status": status
     }
