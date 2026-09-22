@@ -1,21 +1,21 @@
 import requests
 import os
-import re
-from typing import Optional, Dict, Any
+import pandas as pd
+from typing import Optional
 from dotenv import load_dotenv
 
 load_dotenv()
 
-def buscar_preco_concorrente(nome_produto: str) -> Optional[Dict[str, Any]]:
+def buscar_preco_concorrente(nome_produto: str) -> Optional[pd.DataFrame]:
     """
-    Busca o preço e os dados do produto utilizando a API do Serper (Google Shopping).
+    Busca os dados do produto utilizando a API do Serper (Google Shopping).
     
     Parâmetros:
         nome_produto: O nome do produto para pesquisa.
         
     Retorna:
-        Um dicionário contendo o preço limpo (float) e os metadados do concorrente.
-        Retorna None em caso de falha ou erro.
+        Um DataFrame Pandas com os produtos encontrados, filtrando as lojas da blacklist,
+        ou None em caso de falha ou ausência de dados.
     """
     api_key = os.getenv("SERPAPI_KEY")
     url = "https://google.serper.dev/shopping"
@@ -38,41 +38,37 @@ def buscar_preco_concorrente(nome_produto: str) -> Optional[Dict[str, Any]]:
         if not produtos:
             return None
             
-        primeiro_produto = produtos[0]
-        preco_bruto = primeiro_produto.get("price")
+        df = pd.DataFrame(produtos)
         
-        if not preco_bruto:
+        # O DataFrame precisa ter no mínimo as colunas essenciais
+        colunas_esperadas = ["title", "source", "link", "price"]
+        for col in colunas_esperadas:
+            if col not in df.columns:
+                df[col] = None
+        
+        # Lista de lojas a serem ignoradas (Blacklist) - minúsculas
+        blacklist = [
+            "amazon", "amazon.com.br", "magazine luiza", "magalu", 
+            "mercadolivre", "mercado livre", "shopee", "americanas", 
+            "casas bahia", "ponto", "pontofrio", "extra", 
+            "submarino", "shoptime"
+        ]
+        
+        # Se certifica que a coluna source seja tratada como string para filtro
+        df["source"] = df["source"].astype(str)
+        
+        # Filtra removendo as lojas que contêm itens da blacklist
+        filtro_regex = '|'.join(blacklist)
+        df_filtrado = df[~df["source"].str.lower().str.contains(filtro_regex, na=False)].copy()
+        
+        if df_filtrado.empty:
             return None
             
-        # Tratamento matemático da string
-        if isinstance(preco_bruto, str):
-            apenas_numeros = re.sub(r'[^\d.,]', '', preco_bruto)
-            preco_limpo = apenas_numeros.replace('.', '').replace(',', '.')
-            preco = float(preco_limpo)
-        else:
-            preco = float(preco_bruto)
+        # Reseta o index para manter o 0 como o mais relevante do Google
+        df_filtrado = df_filtrado.reset_index(drop=True)
             
-        # Agora retornamos um dicionário rico com todas as informações vitais!
-        return {
-            "preco": preco,
-            "title": primeiro_produto.get("title", "Título não informado"),
-            "source": primeiro_produto.get("source", "Loja Desconhecida"),
-            "link": primeiro_produto.get("link", ""),
-            "imageUrl": primeiro_produto.get("imageUrl", "")
-        }
+        return df_filtrado
 
     except (requests.exceptions.RequestException, ValueError, KeyError, TypeError) as e:
         print(f"Erro ao consultar mercado: {e}")
         return None
-
-# Bloco para testar no terminal
-if __name__ == "__main__":
-    prod = input("Digite seu produto: ")
-    resultado = buscar_preco_concorrente(prod)
-    if resultado:
-        print(f"\n✅ CONCORRENTE ENCONTRADO!")
-        print(f"Produto: {resultado['title']}")
-        print(f"Loja: {resultado['source']}")
-        print(f"Preço Limpo: R$ {resultado['preco']:.2f}")
-    else:
-        print("\n❌ Produto não encontrado ou falha na API.")

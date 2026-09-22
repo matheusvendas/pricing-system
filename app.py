@@ -1,7 +1,9 @@
 import streamlit as st
+import pandas as pd
 from pricing_engine import calcular_preco_ideal
 from market_api import buscar_preco_concorrente
-
+from tratar_df import tratamento
+import json
 def main():
     st.set_page_config(page_title="Pricing Engine V0", layout="wide")
     
@@ -42,29 +44,65 @@ def main():
             return
             
         with st.spinner("Consultando preço do mercado..."):
-            dados_concorrente = buscar_preco_concorrente(nome_produto.strip())
+            with open("exemplo.json", "r") as f:
+                data = json.load(f)
+            produtos = data['shopping']
+            df_bruto = pd.DataFrame(produtos)
+            # df_bruto = buscar_preco_concorrente(nome_produto.strip())
+
             
-        if dados_concorrente is None:
-            st.error("Não foi possível encontrar o preço do produto na API (Falha ou não encontrado).")
+        if df_bruto is None or df_bruto.empty:
+            st.error("Não foi possível encontrar concorrentes fora da blacklist.")
+        else:
+            st.session_state['df_bruto'] = df_bruto
+            
+    if 'df_bruto' in st.session_state:
+        df_bruto = st.session_state['df_bruto']
+        
+        df_limpo = tratamento(df_bruto)
+        if df_limpo.empty:
+            st.error("Falha ao higienizar os preços retornados.")
             return
             
-        preco_concorrente = dados_concorrente["preco"]
+        st.success("Análise de mercado concluída!")
         
-        st.success("Concorrente encontrado com sucesso!")
+        # Pega a melhor opção (mais relevante do Google) como base matemática
+        conc_escolhido = st.selectbox(
+            "Selecione um concorrente principal",
+            df_limpo['source'].unique(),
+        )
+        melhor_opcao = df_limpo[df_limpo['source'] == conc_escolhido].iloc[0]
+        preco_concorrente = float(melhor_opcao["price_limpo"])
         
-        # Cria colunas para organizar a exibição visual
+        # Cria colunas para organizar a exibição visual do concorrente principal
         col1, col2 = st.columns([1, 3])
         
         with col1:
-            if dados_concorrente.get("imageUrl"):
-                st.image(dados_concorrente["imageUrl"], width=150)
+            if 'imageUrl' in melhor_opcao and pd.notna(melhor_opcao["imageUrl"]):
+                st.image(melhor_opcao["imageUrl"], width=150)
                 
         with col2:
-            st.markdown(f"**Produto Base:** {dados_concorrente.get('title', 'N/A')}")
-            st.markdown(f"**Loja:** {dados_concorrente.get('source', 'N/A')}")
-            st.markdown(f"**Preço:** R$ {preco_concorrente:.2f}")
-            if dados_concorrente.get('link'):
-                st.markdown(f"[Ver oferta no Google]({dados_concorrente['link']})")
+            st.markdown(f"**Principal Concorrente Base:** {melhor_opcao.get('title', 'N/A')}")
+            st.markdown(f"**Loja:** {melhor_opcao.get('source', 'N/A')}")
+            st.markdown(f"**Preço Base:** R$ {preco_concorrente:.2f}")
+            if 'link' in melhor_opcao and pd.notna(melhor_opcao['link']):
+                st.markdown(f"[Ver oferta no Google]({melhor_opcao['link']})")
+        
+        st.divider()
+        
+        st.subheader("Análise do Mercado")
+        
+        col_med1, col_med2 = st.columns(2)
+        preco_medio = df_limpo["price_limpo"].mean()
+        preco_mediano = df_limpo["price_limpo"].median()
+        
+        col_med1.metric("Média de Preços (S/ Gigantes)", f"R$ {preco_medio:.2f}")
+        col_med2.metric("Mediana de Preços", f"R$ {preco_mediano:.2f}")
+        
+        st.write("Ofertas de Concorrentes (Preço por Loja)")
+        # Agrupa preços por loja para exibir no gráfico
+        df_grafico = df_limpo.groupby('source')['price_limpo'].mean().sort_values()
+        st.bar_chart(df_grafico)
         
         st.divider()
         
