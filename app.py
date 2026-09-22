@@ -5,10 +5,77 @@ from market_api import buscar_preco_concorrente
 from tratar_df import tratamento
 import json
 def main():
-    st.set_page_config(page_title="Pricing Engine V0", layout="wide")
+    st.set_page_config(page_title="LuLu Tech | Pricing Engine", layout="wide", page_icon="🛍️")
     
-    st.title("Pricing Engine - V0 (Determinístico)")
-    st.markdown("Interface para cálculo de preço considerando custos, concorrência e posicionamento.")
+    # ==========================
+    # BRANDING: LULU TECH (CSS)
+    # ==========================
+    st.markdown("""
+        <style>
+        /* Header Customizado com Gradiente Azul e Rosa */
+        .lulu-header {
+            background: linear-gradient(90deg, #1E3A8A 0%, #E83E8C 100%);
+            padding: 25px;
+            border-radius: 10px;
+            color: white;
+            text-align: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin-bottom: 30px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.15);
+        }
+        .lulu-title {
+            margin: 0;
+            font-size: 2.8rem;
+            font-weight: 900;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+        .lulu-subtitle {
+            margin: 5px 0 0 0;
+            font-size: 1.2rem;
+            font-weight: 400;
+            opacity: 0.95;
+        }
+        
+        /* Customizando a cor do botão primário para o Azul da empresa */
+        .stButton>button[kind="primary"] {
+            background-color: #1E3A8A !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 6px !important;
+            transition: all 0.3s ease;
+        }
+        /* Hover do botão primário vai para o Rosa da empresa */
+        .stButton>button[kind="primary"]:hover {
+            background-color: #E83E8C !important;
+            box-shadow: 0 4px 8px rgba(232, 62, 140, 0.4) !important;
+        }
+        
+        /* Estilo do Rodapé */
+        .lulu-footer {
+            margin-top: 60px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            color: #555;
+            font-size: 0.95rem;
+            font-family: 'Segoe UI', sans-serif;
+        }
+        .lulu-footer .brand {
+            color: #E83E8C;
+            font-weight: bold;
+        }
+        .lulu-footer .tech {
+            color: #1E3A8A;
+            font-weight: bold;
+        }
+        </style>
+        
+        <div class="lulu-header">
+            <h1 class="lulu-title">LULU TECH</h1>
+            <p class="lulu-subtitle">Pricing Engine Intelligence 🎯</p>
+        </div>
+    """, unsafe_allow_html=True)
     
     # ==========================
     # BARRA LATERAL (SIDEBAR)
@@ -166,6 +233,16 @@ def main():
         teto_val = resultado.get('teto')
         teto_str = f"R$ {teto_val:.2f}" if teto_val is not None else "Voo Cego (Sem Teto)"
         c_teto.markdown(f"**📈 Teto (Concorrente + EVE):** {teto_str}")
+
+    # ==========================
+    # RODAPÉ (FOOTER)
+    # ==========================
+    st.markdown("""
+        <div class="lulu-footer">
+            Desenvolvido com 💙 e 💗 pela equipe de Engenharia de Dados da <span class="brand">LuLu</span> <span class="tech">Tech</span>.<br>
+            <small>© 2024 LuLu Tech. Todos os direitos reservados.</small>
+        </div>
+    """, unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
